@@ -10,10 +10,8 @@ app.use(express.json());
 
 const username = "tmtuser";
 const password = "czNL0ALxSoeFoddu";
-console.log(username, password);
 
 const uri = `mongodb+srv://${username}:${password}@cluster0.fceds.mongodb.net/?retryWrites=true&w=majority`;
-console.log(uri);
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
 
 function verifyJWT(req, res, next) {
@@ -38,26 +36,57 @@ function verifyJWT(req, res, next) {
 
 async function run() {
     try {
+        const usersCollection = client.db("tmtDb").collection("users");
         const tasksCollection = client.db("tmtDb").collection("tasks");
-        app.post('/add-task', async (req, res) => {
-            const task = req.body;
-            const result = await tasksCollection.insertOne(task);
-            console.log('Task Added', result);
+
+        app.post('/users', async (req, res) => {
+            const user = req.body;
+            const result = await usersCollection.insertOne(user);
             res.send(result);
         })
 
-        app.get('/tasks', async (req, res) => {
+        app.get('/users', async (req, res) => {
             const query = {};
-            const tasks = await tasksCollection.find(query).toArray();
-            console.log('Get Tasks', tasks);
-            res.send(tasks);
+            const users = await usersCollection.find(query).toArray();
+            res.send(users);
         })
+
+
+        app.post('/add-task', async (req, res) => {
+            const task = req.body;
+            const result = await tasksCollection.insertOne(task);
+            res.send(result);
+        })
+
+        app.get('/tasks/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { email };
+            const tasks = await tasksCollection.find(query).toArray();
+            const myTask = tasks.filter(t => !t.completed)
+            res.send(myTask);
+        })
+
+        app.get('/complete-task/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { email };
+            const tasks = await tasksCollection.find(query).toArray();
+            const completeTask = tasks.filter(n => n.completed)
+            res.send(completeTask);
+        })
+
+        // app.get('/tasks', async (req, res) => {
+        //     const query = {};
+        //     const tasks = await tasksCollection.find(query).toArray();
+        //     console.log('Get Tasks', tasks);
+        //     res.send(tasks);
+        // })
 
         app.delete('/tasks/:id', async (req, res) => {
             const query = { _id: ObjectId(req.params.id) };
             const result = await tasksCollection.deleteOne(query);
             res.send(result)
         })
+
 
         // app.patch('/tasks/:id', async (req, res) => {
         //     const query = { _id: ObjectId(req.params.id) };
@@ -68,12 +97,24 @@ async function run() {
 
         app.patch('/update/:id', async (req, res) => {
             const id = req.params.id;
-            console.log(id);
             const task = req.body;
             const query = { _id: ObjectId(id) };
             const newValues = { $set: { ...task } };
-            const result = await tasksCollection.updateOne(query, newValues);
+            console.log({ ...task });
+            const result = await tasksCollection.updateMany(query, newValues);
             res.send(result)
+        })
+
+        app.put('/tasks/:id', async (req, res) => {
+            const id = req.params.id;
+            const complete = req.body;
+            const filter = { _id: ObjectId(id) };
+            const options = { upsert: true };
+            const updatedDoc = {
+                $set: complete
+            }
+            const result = await tasksCollection.updateOne(filter, updatedDoc, options);
+            res.send(result);
         })
 
     } catch (err) {
